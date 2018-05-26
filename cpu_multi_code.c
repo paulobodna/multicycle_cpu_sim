@@ -28,12 +28,7 @@ int bin_to_dec(int* bin_num, int end_pos, int start_pos){ // a chamada dessa fun
 	int dec = 0;
 	int exp = 0;
 
-	for (int i = end_pos; i >= start_pos; i--) {
-		
-		dec += bin_num[i] * pow(2, exp++);
-		
-	}
-
+	for (int i = end_pos; i >= start_pos; i--) dec += bin_num[i] * pow(2, exp++);
 
 return dec;
 }
