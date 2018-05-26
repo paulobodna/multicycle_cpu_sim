@@ -69,7 +69,7 @@ int main (int argc, char *argv[]) {
 
 	while ((fscanf(fp, "%u", &dec_word) != EOF) || (sim_error > 0)) {
 		bin_word = dec_to_bin(dec_word);
-		/* atribuir cada palavra à matriz que representa a RAM : TODO	*/
+		/* atribuir cada grupo de 8 bits de "bin_word" à matriz que representa a RAM : TODO	*/
 
 
 	}						
