@@ -9,7 +9,7 @@ const int R = 256;	// tamanho da RAM em bytes
 int* dec_to_bin(unsigned int n){
 
 	int* bin = NULL;
-	int size = R;
+	int size = 32;
 
 	bin = (int *) malloc (size * sizeof(int));
 
