@@ -4,16 +4,17 @@
 #include <math.h>
 
 typedef struct alu {
-    int zero;
-    int aluout;
+	int zero;
+	int result;
 } ALU;
 
 typedef struct ir {
-    int *inst;
+	int *inst;
 } IR;
 
 typedef struct regs {
-    int *registers;
+	int *registers, *MDR;
+	int PC, A, B, ALUout;
 } REGS;
 
 const int R = 256;	// tamanho da RAM em bytes
@@ -94,6 +95,25 @@ int readfile(char *file_name, int **RAM) {
 	return 1;
 }
 
+ALU *alu_run(int a, int b, int ALUcontrol) {
+	ALU *alu = (ALU *) malloc (sizeof(ALU));
+
+	if (ALUcontrol == 2) {
+		alu.result = a + b;
+	} else if (ALUcontrol == 6) {
+		alu.result = a - b;
+	} else if (ALUcontrol == 0) {
+		alu.result = a & b;
+	} else if (ALUcontrol == 1) {
+		alu.result = a | b;
+	} else if (ALUcontrol == 7) {
+		alu.result = (a < b) ? 1 : 0;
+	}
+
+	alu.zero = (alu.result == 0) ? 1 : 0;
+	return alu;
+}
+
 int main (int argc, char *argv[]) {
 
 	// declaracao de variaveis e ponteiros
@@ -111,6 +131,9 @@ int main (int argc, char *argv[]) {
 	init_cpu(&RAM, &ir, &regs);
 	// leitura do arquivo
 	if (readfile(argv[1], RAM)) {
+		for (i = 0; i < ; i += 4) {
+			
+		}
 //        for(int i = 0; i < R; i ++) {
 //            printf("[%d] - %d", i, bin_to_dec(RAM[i], 0, 7)); // impressao em decimal
 ////            for(int j = 0; j < 8; j++) { // impressao em binario
