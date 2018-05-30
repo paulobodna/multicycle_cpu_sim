@@ -23,10 +23,14 @@ int init_cpu(int ***RAM, IR **ir, REGS **regs) {
 	*RAM = (int **) calloc (R, sizeof(int *));
 	for (int i = 0; i < R; i++) (*RAM)[i] = (int *) calloc (8, sizeof(int));
 
-	*ir = (IR *) calloc(32, sizeof(IR));
-	*regs = (REGS *) calloc(32, sizeof(REGS)); 
+	*ir = (IR *) malloc (sizeof(IR));
+	ir->inst = (int *) calloc (32, sizeof(int));
 
-    return 1;
+	*regs = (REGS *) malloc (sizeof(REGS)); 
+	regs->registers = (int *) calloc (32, sizeof(int));
+	regs->MDR = (int *) calloc (32, sizeof(int));
+
+	return 1;
 }
 
 int free_cpu(int ***RAM, IR **ir, REGS **regs) {
@@ -112,6 +116,33 @@ ALU *alu_run(int a, int b, int ALUcontrol) {
 
 	alu.zero = (alu.result == 0) ? 1 : 0;
 	return alu;
+}
+
+void datapath(int **RAM, IR **ir, REGS **regs) {
+	int opcode, rs, rt, rd, shamt, fcode, imm, target;
+	regs->PC = 0;
+
+	while (1) {
+		for (int i = 0; i < 4; ++i)
+			memcpy(ir->inst+(i*8), RAM[i+PC], 8*sizeof(int));
+		opcode = bin_to_dec(ir->inst, 0, 5);
+		if (opcode == 0) {	// R-type instruction
+			rs = bin_to_dec(ir->inst, 6, 10);
+			rt = bin_to_dec(ir->inst, 11, 15);
+			rd = bin_to_dec(ir->inst, 16, 20);
+			shamt = bin_to_dec(ir->inst, 21, 25);
+			fcode = bin_to_dec(ir->inst, 26, 31);
+		} else if (opcode == ...) { // I-type instruction
+			rs = bin_to_dec(ir->inst, 6, 10);
+			rt = bin_to_dec(ir->inst, 11, 15);
+			imm = bin_to_dec(ir->inst, 16, 31);
+		} else {	// J-type instruction
+			target = bin_to_dec(ir->inst, 6, 31);
+		}
+		memcpy(regs->MDR, ir->inst, 32*sizeof(int));
+	}
+
+	
 }
 
 int main (int argc, char *argv[]) {
