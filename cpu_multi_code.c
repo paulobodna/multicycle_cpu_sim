@@ -2,7 +2,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <math.h>
-#incclude <thread.h>
+#include <thread.h>
 
 typedef struct uc {
     int *state; // estado atual
