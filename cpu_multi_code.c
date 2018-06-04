@@ -86,51 +86,6 @@ unsigned bin_to_dec(int* bin_num, int start_pos, int end_pos) {
 	return dec;
 }
 
-int update_uc(UC *uc, IR *ir) {
-
-  //state = next state
-  memcpy(uc->state, uc->ns, 4 * sizeof(int));
-
-  //condicao de saida da simulacao
-  int check = bin_to_dec(uc->state, 0, 5);
-  if(check == 1) {
-    check = bin_to_dec(ir->inst, 0, 5);
-    if(check > 25) {
-      printf("Instrucao invalida.\n");
-      return 0;
-    }
-  }
-
-  // atualizando proximo estado
-  uc->ns[0] =
-  uc->ns[1] =
-  uc->ns[2] =
-  uc->ns[3] =
-
-  //atualizando bits de controles
-  uc->ctrl[0] =
-  uc->ctrl[1] =
-  uc->ctrl[2] =
-  uc->ctrl[3] =
-  uc->ctrl[4] =
-  uc->ctrl[5] =
-  uc->ctrl[6] =
-  uc->ctrl[7] =
-  uc->ctrl[8] =
-  uc->ctrl[9] =
-  uc->ctrl[10] =
-  uc->ctrl[11] =
-  uc->ctrl[12] =
-  uc->ctrl[13] =
-  uc->ctrl[14] =
-  uc->ctrl[15] =
-  uc->ctrl[16] =
-  uc->ctrl[17] =
-  uc->ctrl[18] =
-
-  return 1;
-}
-
 int RAM_write(int **RAM, int start_pos, int *bin) {
 	int i, j;
 	for (i = 0, j = start_pos; i < 32; i+= 8, j++) {
