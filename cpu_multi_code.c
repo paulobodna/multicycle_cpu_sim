@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <math.h>
+#incclude <thread.h>
 
 typedef struct uc {
     int *state; // estado atual
@@ -464,6 +465,19 @@ int main (int argc, char *argv[]) {
 		/*for (i = 0; i < ; i += 4) {
 			
 		}*/
+		
+	pthread_t thread[3];
+
+  while(continuar) {
+    pthread_create(&thread[0], NULL, Memmory_manager, (void *) caminho); //thread
+    pthread_create(&thread[1], NULL, Register_manager, (void *) caminho); //thread
+    pthread_create(&thread[2], NULL, ULA_manager, (void *) caminho); //thread
+
+    for(int i = 0; i < 3; i++) {
+      pthread_join(thread[i], NULL);
+    }
+    continuar = update_uc(uc);
+  }
 
 //        for(int i = 0; i < R; i ++) {
 //            printf("[%d] - %d", i, bin_to_dec(RAM[i], 0, 7)); // impressao em decimal
