@@ -78,7 +78,6 @@ int dec_to_bin(unsigned int n, int *bin) {
 	return 1;
 }
 
-// a chamada dessa função pode ocorrer quando a word de 32 bits for colocada no IR
 unsigned bin_to_dec(int* bin_num, int start_pos, int end_pos) { 
 	unsigned dec = 0, exp = 0;
 
