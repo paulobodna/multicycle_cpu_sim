@@ -162,94 +162,105 @@ int readfile(char *file_name, int **RAM) {
 	fclose(fp);
 	return 1;
 }
-/*
-ALU *alu_run(int a, int b, int ALUcontrol) {
-	ALU *alu = (ALU *) malloc (sizeof(ALU));
 
+void alu_run(ALU *alu, int a, int b, int ALUcontrol) {
 	if (ALUcontrol == 2) {
-		alu.result = a + b;
+		alu->result = a + b;
 	} else if (ALUcontrol == 6) {
-		alu.result = a - b;
+		alu->result = a - b;
 	} else if (ALUcontrol == 0) {
-		alu.result = a & b;
+		alu->result = a & b;
 	} else if (ALUcontrol == 1) {
-		alu.result = a | b;
+		alu->result = a | b;
 	} else if (ALUcontrol == 7) {
-		alu.result = (a < b) ? 1 : 0;
+		alu->result = (a < b) ? 1 : 0;
 	}
 
-	alu.zero = (alu.result == 0) ? 1 : 0;
+	alu->zero = (alu->result == 0) ? 1 : 0;
 	return alu;
 }
 
-void datapath(int **RAM, IR **ir, REGS **regs) {
-	int *opcode, *rs, *rt, *rd, *shamt, *fcode, *imm, *target;
+void PC_update(int *PC, REGS *regs,) {
+
+}
+
+void datapath(int **RAM, IR *ir, REGS *regs, UC *uc) {
+	int s, address, *MemData, ReadReg1, ReadReg2, WriteReg, ALUin1, ALUin2;
 	regs->PC = 0;
 
 	while (1) {
-		// PASSO 1: busca da instrução
-		for (int i = 0; i < 4; ++i)
-			memcpy(ir->inst+(i*8), RAM[i+PC], 8*sizeof(int));
+		s = bin_to_dec(uc->ctrl, 0, 1); 	// RegDst
+		if (s == 0) {
+			WriteReg = bin_to_dec(ir->inst, 11, 15);
+		} else if (s == 1) {
+			WriteReg = bin_to_dec(ir->inst, 16, 20);
+		} else if (s == 2) {
+			WriteReg = 31; // $ra
+		}
 
-		opcode = (int *) malloc (6 * sizeof(int));
-		memcpy(opcode, ir->inst, 6*sizeof(int));
-		if (opcode == 0) {	// R-type instruction
-			rs = (int *) malloc (5 * sizeof(int));
-			memcpy(rs, ir->inst+6, 5*sizeof(int));
-//			rs = bin_to_dec(ir->inst, 6, 10);
+		if (uc->ctrl[2]) {			// RegWrite
+			ReadReg1 = bin_to_dec(ir->inst, 6, 10);
+			ReadReg2 = bin_to_dec(ir->inst, 11, 15);
+			regs->A = regs->registers[ReadReg1];
+			regs->B = regs->registers[ReadReg2];
+		}
 
-			rt = (int *) malloc (5 * sizeof(int));
-			memcpy(rt, ir->inst+11, 5*sizeof(int));
-//			rt = bin_to_dec(ir->inst, 11, 15);
+		if (!uc->ctrl[3]) {			// ALUSrcA
+			ALUin1 = regs->PC;
+		} else if (uc->ctrl[3]) {
+			ALUin1 = regs->A;
+		}
 
-			rd = (int *) malloc (5 * sizeof(int));
-			memcpy(rd, ir->inst+16, 5*sizeof(int));
-//			rd = bin_to_dec(ir->inst, 16, 20);
+		s = bin_to_dec(uc->ctrl, 4, 5); 	// ALUSrcB
+		if (s == 0) {
+			ALUin2 = regs->B;
+		} else if (s == 1) {
+			ALUin2 = 4;
+		} else if (s == 2) {
+			ALUin2 = bin_to_dec(ir->inst, 16, 31);
+		} else if (s == 3) {
+			ALUin2 = bin_to_dec(ir->inst, 16, 31) << 2;	
+		}
 
-			shamt = (int *) malloc (5 * sizeof(int));
-			memcpy(shamt, ir->inst+21, 5*sizeof(int));
-//			shamt = bin_to_dec(ir->inst, 21, 25);
+		s = bin_to_dec(uc->ctrl, 8, 9); 	// PCSource
+		if (s == 0) {
+			regs->PC = alu->result;
+		} else if (s == 1) {
+			regs->PC = regs->ALUout;
+		} else if (s == 2) {
+			regs->PC = bin_to_dec(ir->inst, 6, 31) << 2;
+		} else if (s == 3) {
+			regs->PC = regs->A;
+		}
 
-			fcode = (int *) malloc (5 * sizeof(int));
-			memcpy(fcode, ir->inst+26, 5*sizeof(int));
-//			fcode = bin_to_dec(ir->inst, 26, 31);
-		} else if (opcode == ...) { // I-type instruction
-//			rs = bin_to_dec(ir->inst, 6, 10);
-			rs = (int *) malloc (5 * sizeof(int));
-			memcpy(rs, ir->inst+6, 5*sizeof(int));
+		if (!uc->ctrl[12]) {			// IorD
+			address = regs->PC;
+		} else if (uc->ctrl[12]) {
+			address = regs->ALUout;
+		}
 
-//			rt = bin_to_dec(ir->inst, 11, 15);
-			rt = (int *) malloc (5 * sizeof(int));
-			memcpy(rt, ir->inst+11, 5*sizeof(int));
-
-//			imm = bin_to_dec(ir->inst, 16, 31);
-			imm = (int *) malloc (16 * sizeof(int));
-			memcpy(imm, ir->inst+16, 16*sizeof(int));
-		} else {	// J-type instruction
-//			target = bin_to_dec(ir->inst, 6, 31);
-			target = (int *) malloc (28 * sizeof(int));
-			memcpy(target, ir->inst+6, 28*sizeof(int));
+		if (uc->ctrl[13]) { 			// MemRead
+			for (int i = 0; i < 4; ++i)
+				memcpy(MemData, RAM[i+address], 8*sizeof(int));
+			memcpy(regs->MDR, ir->inst, 32*sizeof(int));
 		}
 		
-		memcpy(regs->MDR, ir->inst, 32*sizeof(int));
-//		regs->PC += 4;
+		if (uc->ctrl[16]) {			// IRWrite
+			memcpy(ir->inst, MemData, 32*sizeof(int));
+		}
 
-		// PASSO 2: decodificação da instrução e busca dos registradores
-		memcpy(regs->A, rs, 5*sizeof(int));
-		memcpy(regs->B, rt, 5*sizeof(int));
-//		regs->A = rs, regs->B = rt;
-//		regs->ALUout = regs->PC + (bin_to_dec(ir->inst, 16, 31) << 2);
+
 	}
 
 
 }
-*/
+
 void sim_output(int **RAM, IR *ir, REGS *regs) {
 	int *aux = (int *) calloc (32, sizeof(int));
 	int a = 0, b = 32, c = 64, d = 96;
 	printf("PC=%d\tIR=%u\tMDR=%u\n", regs->PC, bin_to_dec(ir->inst, 0, 31), bin_to_dec(regs->MDR, 0, 31));
 	printf("A=%d\tB=%d\tAluOut=%d\n", regs->A, regs->B, regs->ALUout);
-	printf("Controle=???\n"); // TODO
+	printf("Controle=???\n\n"); // TODO
 
 	printf("Banco de Registradores\n");
 	printf("R00(r0)=%d\tR08(t0)=%d\tR16(s0)=%d\tR24(t8)=%d\n", regs->registers[0], regs->registers[8], regs->registers[16], regs->registers[24]);
@@ -260,6 +271,7 @@ void sim_output(int **RAM, IR *ir, REGS *regs) {
 	printf("R05(a1)=%d\tR13(t5)=%d\tR21(s5)=%d\tR29(sp)=%d\n", regs->registers[5], regs->registers[13], regs->registers[21], regs->registers[29]);
 	printf("R06(a2)=%d\tR14(t6)=%d\tR22(s6)=%d\tR30(s8)=%d\n", regs->registers[6], regs->registers[14], regs->registers[22], regs->registers[30]);
 	printf("R07(a3)=%d\tR15(t7)=%d\tR23(s7)=%d\tR31(ra)=%d\n", regs->registers[7], regs->registers[15], regs->registers[23], regs->registers[31]);
+	printf("\n");
 	
 	for (int i = 0; i < 8; ++i) {
 			// linha 1
