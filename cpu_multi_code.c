@@ -86,7 +86,6 @@ int dec_to_bin(unsigned int n, int *bin) {
 	return 1;
 }
 
-// a chamada dessa função pode ocorrer quando a word de 32 bits for colocada no IR
 unsigned bin_to_dec(int* bin_num, int start_pos, int end_pos) { 
 	unsigned dec = 0, exp = 0;
 
@@ -335,6 +334,82 @@ void sim_output(int **RAM, IR *ir, REGS *regs) {
 			
 			printf("[%d]=%u\n", d, bin_to_dec(aux, 0, 31));
 	}
+}
+int update_uc(UC *uc, int *inst){
+ 
+  //state = next state
+  memcpy(uc->state, uc->ns, 4 * sizeof(int));
+ 
+  //condicao de saida da simulacao
+  int check = bin_to_dec(uc->state, 0, 5);
+  if(check == 1) {
+    check = bin_to_dec(inst, 0, 5);
+    if(check != 0 && check < 2 && check > 5 && check != 8 && check != 12 && check != 20 && check != 21 && check != 35 && check != 43) {
+      printf("Instrucao invalida.\n");
+      return 0;
+    }
+  }
+ 
+  // atualizando proximo estado
+  uc->ns[0] = ((!uc->state[0] & !uc->state[1] & !uc->state[2] & uc->state[3] & (!inst[0] & !inst[1] & !inst[2] & inst[3] & !inst[4] & !inst[5])) |
+	(((!uc->state[0] & !uc->state[1] & !uc->state[2] & uc->state[3]) & (!inst[0] & !inst[1] & !inst[2] & !inst[3] & inst[4] & !inst[5])) | ((uc->state[0] & !uc->state[1] & uc->state[2] & !uc->state[3]) & (!inst[0] & !inst[1] & !inst[2] & !inst[3] & inst[4] & inst[5]))) |
+	((!uc->state[0] & !uc->state[1] & !uc->state[2] & uc->state[3]) & ( (!inst[0] & !inst[1] & !inst[2] & !inst[3] & inst[4] & inst[5]) | (!inst[0] & inst[1] & !inst[2] & inst[3] & !inst[4] & inst[5]) )) |
+	((( !uc->state[0] & !uc->state[1] & !uc->state[2] & uc->state[3] ) & (!inst[0] & inst[1] & !inst[2] & inst[3] & !inst[4] & !inst[5])) | (( uc->state[0] & !uc->state[1] & uc->state[2] & !uc->state[3] ) & (!inst[0] & inst[1] & !inst[2] & inst[3] & !inst[4] & inst[5]) ) ) |
+	(( uc->state[0] & uc->state[1] & !uc->state[2] & uc->state[3] ) | ( (!uc->state[0] & !uc->state[1] & uc->state[2] & !uc->state[3]) & (!inst[0] & !inst[1] & inst[2] & !inst[3] & !inst[4] & !inst[5]))) |
+	( (!uc->state[0] & !uc->state[1] & !uc->state[2] & uc->state[3]) & (!inst[0] & !inst[1] & inst[2] & inst[3] & !inst[4] & !inst[5]) ) |
+	( (!uc->state[0] & !uc->state[1] & !uc->state[2] & uc->state[3]) & (!inst[0] & !inst[1] & !inst[2] & inst[3] & !inst[4] & inst[5]) ));
+	 
+	 
+	  uc->ns[1] = (!uc->state[0] & !uc->state[1] & uc->state[2] & uc->state[3]) |
+	((!uc->state[0] & !uc->state[1] & uc->state[2] & !uc->state[3]) & (inst[0] & !inst[1] & inst[2] & !inst[3] & inst[4] & inst[5])) |
+	((!uc->state[0] & !uc->state[1] & !uc->state[2] & uc->state[3]) & (!inst[0] & !inst[1] & !inst[2] & !inst[3] & !inst[4] & !inst[5])) |
+	(!uc->state[0] & uc->state[1] & uc->state[2] & !uc->state[3]) |
+	(( uc->state[0] & uc->state[1] & !uc->state[2] & uc->state[3] ) | ( (!uc->state[0] & !uc->state[1] & uc->state[2] & !uc->state[3]) & (!inst[0] & !inst[1] & inst[2] & !inst[3] & !inst[4] & !inst[5]))) |
+	( (!uc->state[0] & !uc->state[1] & !uc->state[2] & uc->state[3]) & (!inst[0] & !inst[1] & inst[2] & inst[3] & !inst[4] & !inst[5]) ) |
+	( (!uc->state[0] & !uc->state[1] & !uc->state[2] & uc->state[3]) & (!inst[0] & !inst[1] & !inst[2] & inst[3] & !inst[4] & inst[5]) );
+	 
+	 
+	  uc->ns[2] = ((!uc->state[0] & !uc->state[1] & !uc->state[2] & uc->state[3]) & ((inst[0] & !inst[1] & !inst[2] & !inst[3] & inst[4] & inst[5]) | (inst[0] & !inst[1] & inst[2] & !inst[3] & inst[4] & inst[5]) | ( !inst[0] & !inst[1] & inst[2] & !inst[3] & !inst[4] & !inst[5]))) |
+	((!uc->state[0] & !uc->state[1] & uc->state[2] & !uc->state[3]) & (inst[0] & !inst[1] & !inst[2] & !inst[3] & inst[4] & inst[5])) |
+	((!uc->state[0] & !uc->state[1] & !uc->state[2] & uc->state[3]) & (!inst[0] & !inst[1] & !inst[2] & !inst[3] & !inst[4] & !inst[5])) |
+	(!uc->state[0] & uc->state[1] & uc->state[2] & !uc->state[3]) |
+	((!uc->state[0] & !uc->state[1] & !uc->state[2] & uc->state[3]) & ( (!inst[0] & !inst[1] & !inst[2] & !inst[3] & inst[4] & inst[5]) | (!inst[0] & inst[1] & !inst[2] & inst[3] & !inst[4] & inst[5]) )) |
+	((( !uc->state[0] & !uc->state[1] & !uc->state[2] & uc->state[3] ) & (!inst[0] & inst[1] & !inst[2] & inst[3] & !inst[4] & !inst[5])) | (( uc->state[0] & !uc->state[1] & uc->state[2] & !uc->state[3] ) & (!inst[0] & inst[1] & !inst[2] & inst[3] & !inst[4] & inst[5]) ) ) |
+	( (!uc->state[0] & !uc->state[1] & !uc->state[2] & uc->state[3]) & (!inst[0] & !inst[1] & !inst[2] & inst[3] & !inst[4] & inst[5]) );
+	 
+	 
+	  uc->ns[3] = (!uc->state[0] & !uc->state[1] & !uc->state[2] & !uc->state[3]) |
+	((!uc->state[0] & !uc->state[1] & uc->state[2] & !uc->state[3]) & (inst[0] & !inst[1] & !inst[2] & !inst[3] & inst[4] & inst[5])) |
+	((!uc->state[0] & !uc->state[1] & uc->state[2] & !uc->state[3]) & (inst[0] & !inst[1] & inst[2] & !inst[3] & inst[4] & inst[5])) |
+	(!uc->state[0] & uc->state[1] & uc->state[2] & !uc->state[3]) |
+	(((!uc->state[0] & !uc->state[1] & !uc->state[2] & uc->state[3]) & (!inst[0] & !inst[1] & !inst[2] & !inst[3] & inst[4] & !inst[5])) | ((uc->state[0] & !uc->state[1] & uc->state[2] & !uc->state[3]) & (!inst[0] & !inst[1] & !inst[2] & !inst[3] & inst[4] & inst[5]))) |
+	((( !uc->state[0] & !uc->state[1] & !uc->state[2] & uc->state[3] ) & (!inst[0] & inst[1] & !inst[2] & inst[3] & !inst[4] & !inst[5])) | (( uc->state[0] & !uc->state[1] & uc->state[2] & !uc->state[3] ) & (!inst[0] & inst[1] & !inst[2] & inst[3] & !inst[4] & inst[5]) ) ) |
+	( (!uc->state[0] & !uc->state[1] & !uc->state[2] & uc->state[3]) & (!inst[0] & !inst[1] & inst[2] & inst[3] & !inst[4] & !inst[5]) );
+	 
+	 
+	 
+	  //atualizando bits de controles
+	  uc->ctrl[0] = (uc->state[0] & !uc->state[1] & uc->state[2] & !uc->state[3]);
+	  uc->ctrl[1] = (!uc->state[0] & uc->state[1] & uc->state[2] & uc->state[3]);
+	  uc->ctrl[2] = (!uc->state[0] & uc->state[1] & !uc->state[2] & !uc->state[3]) | (!uc->state[0] & uc->state[1] & uc->state[2] & uc->state[3]) + (uc->state[0] & !uc->state[1] & uc->state[2] & !uc->state[3]) + (uc->state[0] & uc->state[1] & !uc->state[2] & !uc->state[3]);
+	  uc->ctrl[3] = (!uc->state[0] & !uc->state[1] & uc->state[2] & !uc->state[3]) | (!uc->state[0] & uc->state[1] & uc->state[2] & !uc->state[3]) | (uc->state[0] & !uc->state[1] & !uc->state[2] & !uc->state[3]) | (uc->state[0] & uc->state[1] & !uc->state[2] & uc->state[3]) | (uc->state[0] & uc->state[1] & uc->state[2] & !uc->state[3]);
+	  uc->ctrl[4] = (!uc->state[0] & !uc->state[1] & !uc->state[2] & uc->state[3]) | (!uc->state[0] & !uc->state[1] & uc->state[2] & !uc->state[3]) | (uc->state[0] & uc->state[1] & !uc->state[2] & uc->state[3]);
+	  uc->ctrl[5] = (!uc->state[0] & !uc->state[1] & !uc->state[2] & !uc->state[3]) | (!uc->state[0] & !uc->state[1] & !uc->state[2] & uc->state[3]);
+	  uc->ctrl[6] = (!uc->state[0] & uc->state[1] & uc->state[2] & !uc->state[3]) | (uc->state[0] & uc->state[1] & !uc->state[2] & uc->state[3]);
+	  uc->ctrl[7] = (uc->state[0] & !uc->state[1] & !uc->state[2] & !uc->state[3]) | (uc->state[0] & uc->state[1] & !uc->state[2] & uc->state[3]) | (uc->state[0] & uc->state[1] & uc->state[2] & !uc->state[3]);
+	  uc->ctrl[8] = (uc->state[0] & !uc->state[1] & !uc->state[2] & uc->state[3]) | (uc->state[0] & !uc->state[1] & uc->state[2] & uc->state[3]);
+	  uc->ctrl[9] = (uc->state[0] & !uc->state[1] & !uc->state[2] & !uc->state[3]) | (uc->state[0] & !uc->state[1] & uc->state[2] & uc->state[3]) | (uc->state[0] & uc->state[1] & uc->state[2] & !uc->state[3]);
+	  uc->ctrl[10] = (uc->state[0] & !uc->state[1] & !uc->state[2] & !uc->state[3]) | (uc->state[0] & uc->state[1] & uc->state[2] & !uc->state[3]);
+	  uc->ctrl[11] = (!uc->state[0] & !uc->state[1] & !uc->state[2] & !uc->state[3]) | (uc->state[0] & !uc->state[1] & !uc->state[2] & uc->state[3]) | (uc->state[0] & !uc->state[1] & uc->state[2] & uc->state[3]);
+	  uc->ctrl[12] = (!uc->state[0] & !uc->state[1] & uc->state[2] & uc->state[3]) | (!uc->state[0] & uc->state[1] & !uc->state[2] & uc->state[3]);
+	  uc->ctrl[13] = (!uc->state[0] & !uc->state[1] & !uc->state[2] & !uc->state[3]) | (!uc->state[0] & !uc->state[1] & uc->state[2] & uc->state[3]);
+	  uc->ctrl[14] = (!uc->state[0] & uc->state[1] & !uc->state[2] & uc->state[3]);
+	  uc->ctrl[15] = (uc->state[0] & uc->state[1] & uc->state[2] & !uc->state[3]);
+	  uc->ctrl[16] = (!uc->state[0] & !uc->state[1] & !uc->state[2] & !uc->state[3]);
+	  uc->ctrl[17] = (uc->state[0] & !uc->state[1] & uc->state[2] & !uc->state[3]);
+	  uc->ctrl[18] = (!uc->state[0] & uc->state[1] & !uc->state[2] & !uc->state[3]);
+ 
+  return 1;
 }
 
 int main (int argc, char *argv[]) {
