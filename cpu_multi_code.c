@@ -26,6 +26,14 @@ typedef struct regs {
 
 const int R = 256;	// tamanho da RAM em bytes
 
+typedef enum Error {
+	NO_ERROR,
+	ALU_OP,
+	INVALID_INST,
+	MEM_ACCESS,
+	BANK_ACCESS
+} Error;
+
 int init_cpu(int ***RAM, IR **ir, REGS **regs, UC **uc) {
 	*RAM = (int **) calloc (R, sizeof(int *));
 	for (int i = 0; i < R; i++) (*RAM)[i] = (int *) calloc (8, sizeof(int));
@@ -87,51 +95,6 @@ unsigned bin_to_dec(int* bin_num, int start_pos, int end_pos) {
 	return dec;
 }
 
-int update_uc(UC *uc, IR *ir) {
-
-  //state = next state
-  memcpy(uc->state, uc->ns, 4 * sizeof(int));
-
-  //condicao de saida da simulacao
-  int check = bin_to_dec(uc->state, 0, 5);
-  if(check == 1) {
-    check = bin_to_dec(ir->inst, 0, 5);
-    if(check > 25) {
-      printf("Instrucao invalida.\n");
-      return 0;
-    }
-  }
-
-  // atualizando proximo estado
-  uc->ns[0] =
-  uc->ns[1] =
-  uc->ns[2] =
-  uc->ns[3] =
-
-  //atualizando bits de controles
-  uc->ctrl[0] =
-  uc->ctrl[1] =
-  uc->ctrl[2] =
-  uc->ctrl[3] =
-  uc->ctrl[4] =
-  uc->ctrl[5] =
-  uc->ctrl[6] =
-  uc->ctrl[7] =
-  uc->ctrl[8] =
-  uc->ctrl[9] =
-  uc->ctrl[10] =
-  uc->ctrl[11] =
-  uc->ctrl[12] =
-  uc->ctrl[13] =
-  uc->ctrl[14] =
-  uc->ctrl[15] =
-  uc->ctrl[16] =
-  uc->ctrl[17] =
-  uc->ctrl[18] =
-
-  return 1;
-}
-
 int RAM_write(int **RAM, int start_pos, int *bin) {
 	int i, j;
 	for (i = 0, j = start_pos; i < 32; i+= 8, j++) {
@@ -163,7 +126,7 @@ int readfile(char *file_name, int **RAM) {
 	return 1;
 }
 
-void alu_run(ALU *alu, IR *ir, REGS *regs, UC *uc) {
+void alu_run(ALU *alu, IR *ir, REGS *regs, UC *uc, Error *error) {
 	int ALUoperation, funct, s = bin_to_dec(uc->ctrl, 4, 5), r = bin_to_dec(uc->ctrl, 6, 7);
 
 	if (!uc->ctrl[3]) {			// ALUSrcA
@@ -194,6 +157,10 @@ void alu_run(ALU *alu, IR *ir, REGS *regs, UC *uc) {
 		else if (funct == 36) ALUoperation = 0;
 		else if (funct == 37) ALUoperation = 1;
 		else if (funct == 42) ALUoperation = 7;
+		else {
+			*error = INVALID_INST;
+			return;
+		}
 	}
 	
 	if (ALUoperation == 2) {
@@ -206,14 +173,17 @@ void alu_run(ALU *alu, IR *ir, REGS *regs, UC *uc) {
 		alu->result = ALUin1 | ALUin2;
 	} else if (ALUoperation == 7) {
 		alu->result = (ALUin1 < ALUin2) ? 1 : 0;
+	} else {
+		*error = ALU_OP;
+		return;
 	}
 
 	alu->zero = (alu->result == 0) ? 1 : 0;
 	return alu;
 }
 
-void PC_update(int *PC, REGS *regs, IR *ir, ALU *alu, UC *uc) {
-	int z, nPC, s = bin_to_dec(uc->ctrl, 8, 9); 	// PCSource
+void PC_update(int *PC, REGS *regs, IR *ir, ALU *alu, UC *uc, Error *error) {
+	int z, nPC = -1, s = bin_to_dec(uc->ctrl, 8, 9); 	// PCSource
 
 	if (s == 0) nPC = alu->result;
 	else if (s == 1) nPC = regs->ALUout;
@@ -226,7 +196,7 @@ void PC_update(int *PC, REGS *regs, IR *ir, ALU *alu, UC *uc) {
 	if ((z & uc->ctrl[10]) | uc->ctrl[11]) *PC = nPC;	// PCWriteCond && PCWrite, respec.
 }
 
-void RegBank_write(REGS *regs, IR *ir, UC *uc) {
+void RegBank_write(REGS *regs, IR *ir, UC *uc, Error *error) {
 	int s = bin_to_dec(uc->ctrl, 0, 1), r = bin_to_dec(uc->ctrl, 17, 18); 	// RegDst
 	if (s == 0) {
 		WriteReg = bin_to_dec(ir->inst, 11, 15);
@@ -236,8 +206,13 @@ void RegBank_write(REGS *regs, IR *ir, UC *uc) {
 		WriteReg = 31; // $ra
 	}
 	
-	if (uc->ctrl[2]) 			// RegWrite
+	if (uc->ctrl[2]) {			// RegWrite
+		if (WriteReg > 31) {
+			*error = BANK_ACCESS;
+			return;
+		}
 		ir->inst[WriteReg] = WriteData;
+	}
 
 //	r = bin_to_dec(uc->ctrl, 17, 18); 	// MemToReg
 	if (r == 0) {
@@ -249,8 +224,9 @@ void RegBank_write(REGS *regs, IR *ir, UC *uc) {
 	}
 }
 
-void Memory_access(int ***RAM, IR *ir, REGS *regs, UC *uc, int **MemData) {
-	int *MemData;
+void Memory_access(int ***RAM, IR *ir, REGS *regs, UC *uc, int **MemData, Error *error) {
+	int *MemData, *bin = NULL;
+	bin = (int *) calloc (32, sizeof(int));
 
 	if (!uc->ctrl[12]) {			// IorD
 		address = regs->PC;
@@ -259,12 +235,20 @@ void Memory_access(int ***RAM, IR *ir, REGS *regs, UC *uc, int **MemData) {
 	}
 
 	if (uc->ctrl[13]) { 			// MemRead
+		if (address+3 >= R) {
+			*error = MEM_ACCESS;	// acesso invalido a memoria
+			return;
+		}
 		for (int i = 0; i < 4; ++i)
 			memcpy(*MemData, RAM[i+address], 8*sizeof(int));
 		memcpy(regs->MDR, ir->inst, 32*sizeof(int));
 	}
 	
 	if (uc->ctrl[14]) { 			// MemWrite
+		if (address+3 >= R) {
+			*error = MEM_ACCESS;
+			return;
+		}
 		dec_to_bin(regs->B, bin);
 		memcpy(RAM[address], bin, 8*sizeof(int));
 		memcpy(RAM[address+1], bin+8, 8*sizeof(int));
@@ -274,12 +258,13 @@ void Memory_access(int ***RAM, IR *ir, REGS *regs, UC *uc, int **MemData) {
 }
 
 void datapath(int **RAM, IR *ir, REGS *regs, UC *uc) {
-	int s, address, *MemData, ReadReg1, ReadReg2, WriteReg, ALUin1, ALUin2, WriteData, *bin = NULL;
+	int s, address, *MemData, ReadReg1, ReadReg2, WriteReg, ALUin1, ALUin2, WriteData;
+	int run = 1;
+	Error error = NO_ERROR;
 //	int 
-	regs->PC = 0;
-	bin = (int *) calloc (32, sizeof(int));
 
-	while (1) {
+	while (run) {
+		
 		ReadReg1 = bin_to_dec(ir->inst, 6, 10);
 		ReadReg2 = bin_to_dec(ir->inst, 11, 15);
 		regs->A = regs->registers[ReadReg1];
@@ -287,14 +272,15 @@ void datapath(int **RAM, IR *ir, REGS *regs, UC *uc) {
 
 
 
-		alu_run(alu, ir, regs, uc);
-		PC_update(&regs->PC, regs, ir, alu, uc);
-		RegBank_write(regs, ir, uc);
-		Memory_access(&RAM, ir, regs, uc, &MemData);
+		alu_run(alu, ir, regs, uc, &error);
+		PC_update(&regs->PC, regs, ir, alu, uc, &error);
+		RegBank_write(regs, ir, uc, &error);
+		Memory_access(&RAM, ir, regs, uc, &MemData, &error);
 		if (uc->ctrl[16]) {			// IRWrite
 			memcpy(ir->inst, MemData, 32*sizeof(int));
 		}
 
+	
 	}
 
 
