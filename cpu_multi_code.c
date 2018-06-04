@@ -66,7 +66,7 @@ int free_cpu(int ***RAM, IR **ir, REGS **regs, UC *uc) {
 	return 1;
 }
 
-int dec_to_bin(unsigned int n, int *bin){
+int dec_to_bin(unsigned int n, int *bin) {
 	int size = 32;
 
 	while (size > 0) {
@@ -163,92 +163,137 @@ int readfile(char *file_name, int **RAM) {
 	return 1;
 }
 
-void alu_run(ALU *alu, int a, int b, int ALUcontrol) {
-	if (ALUcontrol == 2) {
-		alu->result = a + b;
-	} else if (ALUcontrol == 6) {
-		alu->result = a - b;
-	} else if (ALUcontrol == 0) {
-		alu->result = a & b;
-	} else if (ALUcontrol == 1) {
-		alu->result = a | b;
-	} else if (ALUcontrol == 7) {
-		alu->result = (a < b) ? 1 : 0;
+void alu_run(ALU *alu, IR *ir, REGS *regs, UC *uc) {
+	int ALUoperation, funct, s = bin_to_dec(uc->ctrl, 4, 5), r = bin_to_dec(uc->ctrl, 6, 7);
+
+	if (!uc->ctrl[3]) {			// ALUSrcA
+		ALUin1 = regs->PC;
+	} else if (uc->ctrl[3]) {
+		ALUin1 = regs->A;
+	}
+
+//	s = bin_to_dec(uc->ctrl, 4, 5); 	// ALUSrcB
+	if (s == 0) {
+		ALUin2 = regs->B;
+	} else if (s == 1) {
+		ALUin2 = 4;
+	} else if (s == 2) {
+		ALUin2 = bin_to_dec(ir->inst, 16, 31);
+	} else if (s == 3) {
+		ALUin2 = bin_to_dec(ir->inst, 16, 31) << 2;	
+	}
+
+	if (r == 0) {
+		ALUoperation = 2;
+	} else if (r == 1) {
+		ALUoperation = 6;
+	} else if (r == 2) {
+		funct = bin_to_dec(ir->inst, 26, 31);
+		if (funct == 32) ALUoperation = 2;
+		else if (funct == 34) ALUoperation = 6;
+		else if (funct == 36) ALUoperation = 0;
+		else if (funct == 37) ALUoperation = 1;
+		else if (funct == 42) ALUoperation = 7;
+	}
+	
+	if (ALUoperation == 2) {
+		alu->result = ALUin1 + ALUin2;
+	} else if (ALUoperation == 6) {
+		alu->result = ALUin1 - ALUin2;
+	} else if (ALUoperation == 0) {
+		alu->result = ALUin1 & ALUin2;
+	} else if (ALUoperation == 1) {
+		alu->result = ALUin1 | ALUin2;
+	} else if (ALUoperation == 7) {
+		alu->result = (ALUin1 < ALUin2) ? 1 : 0;
 	}
 
 	alu->zero = (alu->result == 0) ? 1 : 0;
 	return alu;
 }
 
-void PC_update(int *PC, REGS *regs,) {
+void PC_update(int *PC, REGS *regs, IR *ir, ALU *alu, UC *uc) {
+	int z, nPC, s = bin_to_dec(uc->ctrl, 8, 9); 	// PCSource
 
+	if (s == 0) nPC = alu->result;
+	else if (s == 1) nPC = regs->ALUout;
+	else if (s == 2) nPC = bin_to_dec(ir->inst, 6, 31) << 2;
+	else if (s == 3) nPC = regs->A;
+	
+	if (!uc->ctrl[15]) z = alu->zero;		// BNE
+	else if (uc->ctrl[15]) z = !alu->zero;
+
+	if ((z & uc->ctrl[10]) | uc->ctrl[11]) *PC = nPC;	// PCWriteCond && PCWrite, respec.
+}
+
+void RegBank_write(REGS *regs, IR *ir, UC *uc) {
+	int s = bin_to_dec(uc->ctrl, 0, 1), r = bin_to_dec(uc->ctrl, 17, 18); 	// RegDst
+	if (s == 0) {
+		WriteReg = bin_to_dec(ir->inst, 11, 15);
+	} else if (s == 1) {
+		WriteReg = bin_to_dec(ir->inst, 16, 20);
+	} else if (s == 2) {
+		WriteReg = 31; // $ra
+	}
+	
+	if (uc->ctrl[2]) 			// RegWrite
+		ir->inst[WriteReg] = WriteData;
+
+//	r = bin_to_dec(uc->ctrl, 17, 18); 	// MemToReg
+	if (r == 0) {
+		WriteData = regs->ALUout;
+	} else if (r == 1) {
+		WriteData = regs->MDR;
+	} else if (r == 2) {
+		WriteData = regs->PC;
+	}
+}
+
+void Memory_access(int ***RAM, IR *ir, REGS *regs, UC *uc, int **MemData) {
+	int *MemData;
+
+	if (!uc->ctrl[12]) {			// IorD
+		address = regs->PC;
+	} else if (uc->ctrl[12]) {
+		address = regs->ALUout;
+	}
+
+	if (uc->ctrl[13]) { 			// MemRead
+		for (int i = 0; i < 4; ++i)
+			memcpy(*MemData, RAM[i+address], 8*sizeof(int));
+		memcpy(regs->MDR, ir->inst, 32*sizeof(int));
+	}
+	
+	if (uc->ctrl[14]) { 			// MemWrite
+		dec_to_bin(regs->B, bin);
+		memcpy(RAM[address], bin, 8*sizeof(int));
+		memcpy(RAM[address+1], bin+8, 8*sizeof(int));
+		memcpy(RAM[address+2], bin+16, 8*sizeof(int));
+		memcpy(RAM[address+3], bin+24, 8*sizeof(int));
+	}
 }
 
 void datapath(int **RAM, IR *ir, REGS *regs, UC *uc) {
-	int s, address, *MemData, ReadReg1, ReadReg2, WriteReg, ALUin1, ALUin2;
+	int s, address, *MemData, ReadReg1, ReadReg2, WriteReg, ALUin1, ALUin2, WriteData, *bin = NULL;
+//	int 
 	regs->PC = 0;
+	bin = (int *) calloc (32, sizeof(int));
 
 	while (1) {
-		s = bin_to_dec(uc->ctrl, 0, 1); 	// RegDst
-		if (s == 0) {
-			WriteReg = bin_to_dec(ir->inst, 11, 15);
-		} else if (s == 1) {
-			WriteReg = bin_to_dec(ir->inst, 16, 20);
-		} else if (s == 2) {
-			WriteReg = 31; // $ra
-		}
+		ReadReg1 = bin_to_dec(ir->inst, 6, 10);
+		ReadReg2 = bin_to_dec(ir->inst, 11, 15);
+		regs->A = regs->registers[ReadReg1];
+		regs->B = regs->registers[ReadReg2];
 
-		if (uc->ctrl[2]) {			// RegWrite
-			ReadReg1 = bin_to_dec(ir->inst, 6, 10);
-			ReadReg2 = bin_to_dec(ir->inst, 11, 15);
-			regs->A = regs->registers[ReadReg1];
-			regs->B = regs->registers[ReadReg2];
-		}
 
-		if (!uc->ctrl[3]) {			// ALUSrcA
-			ALUin1 = regs->PC;
-		} else if (uc->ctrl[3]) {
-			ALUin1 = regs->A;
-		}
 
-		s = bin_to_dec(uc->ctrl, 4, 5); 	// ALUSrcB
-		if (s == 0) {
-			ALUin2 = regs->B;
-		} else if (s == 1) {
-			ALUin2 = 4;
-		} else if (s == 2) {
-			ALUin2 = bin_to_dec(ir->inst, 16, 31);
-		} else if (s == 3) {
-			ALUin2 = bin_to_dec(ir->inst, 16, 31) << 2;	
-		}
-
-		s = bin_to_dec(uc->ctrl, 8, 9); 	// PCSource
-		if (s == 0) {
-			regs->PC = alu->result;
-		} else if (s == 1) {
-			regs->PC = regs->ALUout;
-		} else if (s == 2) {
-			regs->PC = bin_to_dec(ir->inst, 6, 31) << 2;
-		} else if (s == 3) {
-			regs->PC = regs->A;
-		}
-
-		if (!uc->ctrl[12]) {			// IorD
-			address = regs->PC;
-		} else if (uc->ctrl[12]) {
-			address = regs->ALUout;
-		}
-
-		if (uc->ctrl[13]) { 			// MemRead
-			for (int i = 0; i < 4; ++i)
-				memcpy(MemData, RAM[i+address], 8*sizeof(int));
-			memcpy(regs->MDR, ir->inst, 32*sizeof(int));
-		}
-		
+		alu_run(alu, ir, regs, uc);
+		PC_update(&regs->PC, regs, ir, alu, uc);
+		RegBank_write(regs, ir, uc);
+		Memory_access(&RAM, ir, regs, uc, &MemData);
 		if (uc->ctrl[16]) {			// IRWrite
 			memcpy(ir->inst, MemData, 32*sizeof(int));
 		}
-
 
 	}
 
